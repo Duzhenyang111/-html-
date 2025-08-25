@@ -59,16 +59,6 @@ cd excel-data-annotation-tool
 # 无需安装依赖，直接打开index.html即可使用
 ```
 
-## 项目结构
-
-```
-excel-data-annotation-tool/
-├── index.html          # 主页面
-├── README.md           # 说明文档
-├── LICENSE             # 开源许可证
-└── assets/
-    ├── screenshot.png  # 项目截图
-    └── demo.xlsx       # 示例数据文件
 ```
 
 ## 技术栈
