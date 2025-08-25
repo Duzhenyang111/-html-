@@ -59,7 +59,6 @@ cd excel-data-annotation-tool
 # 无需安装依赖，直接打开index.html即可使用
 ```
 
-```
 
 ## 技术栈
 
@@ -85,6 +84,4 @@ cd excel-data-annotation-tool
 
 欢迎提交Issue和Pull Request来改进这个工具。
 
-## 许可证
 
-本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件。
