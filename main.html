@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel数据标注工具</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            background-color: #f5f5f5;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .text-display {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: white;
+            border-radius: 5px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .button-group {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        #relevant {
+            background-color: #4CAF50;
+            color: white;
+        }
+        #relevant:hover {
+            background-color: #45a049;
+        }
+        #irrelevant {
+            background-color: #f44336;
+            color: white;
+        }
+        #irrelevant:hover {
+            background-color: #d32f2f;
+        }
+        #export {
+            background-color: #2196F3;
+            color: white;
+        }
+        #export:hover {
+            background-color: #0b7dda;
+        }
+        #file-input {
+            margin-bottom: 20px;
+        }
+        .progress {
+            margin-top: 20px;
+            text-align: center;
+        }
+        .instructions {
+            background-color: #e7f3fe;
+            border-left: 6px solid #2196F3;
+            padding: 10px 15px;
+            margin-bottom: 20px;
+        }
+        .key-hint {
+            text-align: center;
+            margin-top: 10px;
+            color: #666;
+            font-size: 14px;
+        }
+        .highlight {
+            animation: highlight 0.5s;
+        }
+        @keyframes highlight {
+            0% { background-color: rgba(76, 175, 80, 0.3); }
+            100% { background-color: transparent; }
+        }
+        .highlight-irrelevant {
+            animation: highlight-irrelevant 0.5s;
+        }
+        @keyframes highlight-irrelevant {
+            0% { background-color: rgba(244, 67, 54, 0.3); }
+            100% { background-color: transparent; }
+        }
+        .export-section {
+            margin-top: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Excel数据标注工具</h1>
+        
+        <div class="instructions">
+            <h3>使用说明：</h3>
+            <ol>
+                <li>上传包含两列数据的Excel文件</li>
+                <li>系统会逐行显示两列文本内容</li>
+                <li>判断两句话是否相关：
+                    <ul>
+                        <li>点击"相关"按钮 或 按键盘 <strong>左箭头键</strong> (←)</li>
+                        <li>点击"不相关"按钮 或 按键盘 <strong>右箭头键</strong> (→)</li>
+                    </ul>
+                </li>
+                <li>可以随时导出当前标注结果</li>
+            </ol>
+        </div>
+        
+        <input type="file" id="file-input" accept=".xlsx, .xls" />
+        
+        <div id="content" style="display: none;">
+            <h2 id="current-row">第 0 行 / 共 0 行</h2>
+            
+            <div class="text-display" id="text-display">
+                <h3>第一句话：</h3>
+                <p id="text1"></p>
+                <h3>第二句话：</h3>
+                <p id="text2"></p>
+            </div>
+            
+            <div class="button-group">
+                <button id="relevant">相关 (1) ←</button>
+                <button id="irrelevant">不相关 (0) →</button>
+            </div>
+            
+            <div class="key-hint">
+                提示：可以使用键盘左箭头(←)标记相关，右箭头(→)标记不相关
+            </div>
+            
+            <div class="progress">
+                <progress id="progress-bar" value="0" max="100"></progress>
+                <p id="progress-text">0% 已完成</p>
+            </div>
+            
+            <div class="export-section">
+                <button id="export">导出当前标注结果</button>
+                <p>您可以随时导出当前标注进度，无需等到全部完成</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let workbook = null;
+        let worksheet = null;
+        let currentRow = 1; // 从第2行开始（假设第1行是标题）
+        let totalRows = 0;
+        let column1 = '';
+        let column2 = '';
+        
+        // 文件输入变化时读取Excel
+        document.getElementById('file-input').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                workbook = XLSX.read(data, { type: 'array' });
+                
+                // 获取第一个工作表
+                const firstSheetName = workbook.SheetNames[0];
+                worksheet = workbook.Sheets[firstSheetName];
+                
+                // 转换为JSON
+                const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                totalRows = jsonData.length;
+                
+                // 显示第一行数据
+                showCurrentRow();
+                
+                // 显示内容区域
+                document.getElementById('content').style.display = 'block';
+                
+                // 更新进度
+                updateProgress();
+                
+                // 聚焦到文本显示区域以便接收键盘事件
+                document.getElementById('text-display').focus();
+            };
+            reader.readAsArrayBuffer(file);
+        });
+        
+        // 添加键盘事件监听
+        document.addEventListener('keydown', function(e) {
+            // 只在内容显示时才响应键盘事件
+            if (document.getElementById('content').style.display === 'none') return;
+            
+            switch(e.key) {
+                case 'ArrowLeft':
+                    // 模拟点击相关按钮
+                    document.getElementById('relevant').click();
+                    // 添加高亮效果
+                    document.getElementById('text-display').classList.add('highlight');
+                    setTimeout(() => {
+                        document.getElementById('text-display').classList.remove('highlight');
+                    }, 500);
+                    break;
+                case 'ArrowRight':
+                    // 模拟点击不相关按钮
+                    document.getElementById('irrelevant').click();
+                    // 添加高亮效果
+                    document.getElementById('text-display').classList.add('highlight-irrelevant');
+                    setTimeout(() => {
+                        document.getElementById('text-display').classList.remove('highlight-irrelevant');
+                    }, 500);
+                    break;
+            }
+        });
+        
+        // 设置文本显示区域可聚焦
+        document.getElementById('text-display').setAttribute('tabindex', '0');
+        
+        // 显示当前行数据
+        function showCurrentRow() {
+            if (!worksheet) return;
+            
+            // 获取当前行数据
+            const jsonData = XLSX.utils.sheet_to_json(worksheet);
+            if (currentRow > jsonData.length) {
+                // 所有行已处理完毕
+                document.getElementById('text1').textContent = "所有数据已标注完成！";
+                document.getElementById('text2').textContent = "";
+                document.getElementById('relevant').disabled = true;
+                document.getElementById('irrelevant').disabled = true;
+                return;
+            }
+            
+            const rowData = jsonData[currentRow - 1];
+            
+            // 获取前两列的列名（假设是前两列）
+            const columns = Object.keys(rowData);
+            column1 = columns[0];
+            column2 = columns[1];
+            
+            // 显示文本
+            document.getElementById('text1').textContent = rowData[column1] || "(空)";
+            document.getElementById('text2').textContent = rowData[column2] || "(空)";
+            document.getElementById('current-row').textContent = `第 ${currentRow} 行 / 共 ${totalRows} 行`;
+            
+            // 聚焦到文本显示区域以便接收键盘事件
+            document.getElementById('text-display').focus();
+        }
+        
+        // 更新进度条
+        function updateProgress() {
+            const progress = Math.round((currentRow - 1) / totalRows * 100);
+            document.getElementById('progress-bar').value = progress;
+            document.getElementById('progress-text').textContent = `${progress}% 已完成`;
+        }
+        
+        // 标记相关
+        function markRelevant() {
+            if (!worksheet) return;
+            
+            // 获取当前单元格地址（第三列）
+            const cellAddress = XLSX.utils.encode_cell({ r: currentRow, c: 2 });
+            
+            // 设置标签为1
+            if (!worksheet[cellAddress]) {
+                worksheet[cellAddress] = { t: 'n', v: 1 };
+            } else {
+                worksheet[cellAddress].v = 1;
+            }
+            
+            // 移动到下一行
+            currentRow++;
+            showCurrentRow();
+            updateProgress();
+        }
+        
+        // 标记不相关
+        function markIrrelevant() {
+            if (!worksheet) return;
+            
+            // 获取当前单元格地址（第三列）
+            const cellAddress = XLSX.utils.encode_cell({ r: currentRow, c: 2 });
+            
+            // 设置标签为0
+            if (!worksheet[cellAddress]) {
+                worksheet[cellAddress] = { t: 'n', v: 0 };
+            } else {
+                worksheet[cellAddress].v = 0;
+            }
+            
+            // 移动到下一行
+            currentRow++;
+            showCurrentRow();
+            updateProgress();
+        }
+        
+        // 相关按钮点击
+        document.getElementById('relevant').addEventListener('click', markRelevant);
+        
+        // 不相关按钮点击
+        document.getElementById('irrelevant').addEventListener('click', markIrrelevant);
+        
+        // 导出标注结果
+        document.getElementById('export').addEventListener('click', function() {
+            if (!workbook) return;
+            
+            // 添加第三列的标题（假设第一行是标题）
+            const titleCell = XLSX.utils.encode_cell({ r: 0, c: 2 });
+            if (!worksheet[titleCell]) {
+                worksheet[titleCell] = { t: 's', v: '标签' };
+            }
+            
+            // 生成文件名，包含当前时间戳
+            const now = new Date();
+            const timestamp = `${now.getFullYear()}${(now.getMonth()+1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}_${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}`;
+            const filename = `标注结果_${timestamp}.xlsx`;
+            
+            // 导出Excel文件
+            XLSX.writeFile(workbook, filename);
+            
+            // 显示导出成功提示
+            alert(`标注结果已导出为: ${filename}`);
+        });
+    </script>
+</body>
+</html>
